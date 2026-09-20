@@ -12,6 +12,7 @@ Aplicação para pesquisar perfis e explorar repositórios públicos do GitHub, 
 - Filtro por linguagem, incluindo repositórios sem linguagem informada.
 - Ordenação por atualização, estrelas ou nome.
 - Paginação local com 10 repositórios por página.
+- Carregamento de novos lotes, sem duplicar repositórios, com nova tentativa em caso de erro.
 - Estados de carregamento e mensagens de erro.
 - Cancelamento de buscas ao sair da página.
 - Interface responsiva com controles identificados e mensagens acessíveis.
@@ -49,7 +50,7 @@ Não é necessário configurar variáveis de ambiente para a versão atual.
 npm test
 ```
 
-Executa os 28 testes automatizados de interface e serviço.
+Executa os testes automatizados de interface e serviço.
 
 ```bash
 npm run test:watch
@@ -85,7 +86,7 @@ O arquivo `vercel.json` configura o acesso direto às rotas da aplicação na Ve
 
 ## Limitações atuais
 
-- São carregados até 100 repositórios públicos por perfil.
+- Os repositórios são carregados em lotes de até 100 pelo botão "Carregar mais repositórios". Um lote menor que 100 encerra a busca; totais múltiplos de 100 podem exigir uma consulta final vazia.
 - O filtro, a ordenação e a paginação operam sobre os repositórios carregados.
 - As consultas não autenticadas estão sujeitas aos limites da API do GitHub.
 - Os testes automatizados não substituem a validação visual em navegador.

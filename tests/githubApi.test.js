@@ -53,3 +53,18 @@ it('propaga cancelamento ao fetch sem convertê-lo em falha de conexão', async 
   await assertion
   expect(fetch.mock.calls[0][1].signal.aborted).toBe(true)
 })
+it('busca o segundo lote de repositórios', async () => {
+  const repos = [{ id: 101, name: 'outro-repositorio' }]
+  fetch.mockResolvedValue(new Response(JSON.stringify(repos)))
+
+  await expect(
+    getUserRepositories('alice', undefined, 2)
+  ).resolves.toEqual(repos)
+
+  expect(fetch).toHaveBeenCalledWith(
+    expect.stringContaining('/users/alice/repos?per_page=100&page=2'),
+    expect.objectContaining({
+      signal: expect.any(AbortSignal),
+    }),
+  )
+})

@@ -17,6 +17,7 @@ function UserDetails() {
 function Explorer({ routeUsername = '' }) {
   const navigate = useNavigate()
   const inputRef = useRef(null)
+  const moreRequestRef = useRef(null)
   const [attempt, setAttempt] = useState(0)
   const [username, setUsername] = useState(routeUsername)
   const [status, setStatus] = useState(routeUsername ? 'loading' : 'idle')
@@ -26,6 +27,10 @@ function Explorer({ routeUsername = '' }) {
   const [language, setLanguage] = useState('')
   const [sortOrder, setSortOrder] = useState('updated')
   const [page, setPage] = useState(1)
+  const [repositoryApiPage, setRepositoryApiPage] = useState(1)
+  const [hasMoreRepositories, setHasMoreRepositories] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState('')
   const isLoading = status === 'loading'
   const languages = [...new Set(repositories.map((repository) => repository.language).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'pt-BR'))
@@ -60,6 +65,7 @@ function Explorer({ routeUsername = '' }) {
       if (controller.signal.aborted) return
       setUser(profile)
       setRepositories(repos)
+      setHasMoreRepositories(repos.length === 100)
       setStatus('success')
     }).catch((error) => {
       if (controller.signal.aborted) return
@@ -69,6 +75,8 @@ function Explorer({ routeUsername = '' }) {
 
     return () => {
       controller.abort()
+      moreRequestRef.current?.abort()
+      moreRequestRef.current = null
       document.title = 'GitHub Developer Explorer'
     }
   }, [routeUsername, attempt])
@@ -76,6 +84,10 @@ function Explorer({ routeUsername = '' }) {
   function handleSearch(event) {
     event.preventDefault()
     if (isLoading) return
+    moreRequestRef.current?.abort()
+    moreRequestRef.current = null
+    setIsLoadingMore(false)
+    setLoadMoreError('')
     const login = username.trim()
     if (!login) {
       setError('Digite um usuário do GitHub para buscar.')
@@ -91,9 +103,42 @@ function Explorer({ routeUsername = '' }) {
       setLanguage('')
       setSortOrder('updated')
       setPage(1)
+      setRepositoryApiPage(1)
+      setHasMoreRepositories(false)
       setAttempt((value) => value + 1)
     } else {
       navigate(`/user/${encodeURIComponent(login)}`)
+    }
+  }
+
+  async function handleLoadMore() {
+    if (status !== 'success' || !hasMoreRepositories || moreRequestRef.current) return
+
+    const controller = new AbortController()
+    moreRequestRef.current = controller
+    const nextApiPage = repositoryApiPage + 1
+    setIsLoadingMore(true)
+    setLoadMoreError('')
+
+    try {
+      const nextRepositories = await getUserRepositories(routeUsername, controller.signal, nextApiPage)
+      if (controller.signal.aborted) return
+
+      setRepositories((current) => {
+        const byId = new Map(current.map((repository) => [repository.id, repository]))
+        for (const repository of nextRepositories) byId.set(repository.id, repository)
+        return [...byId.values()]
+      })
+      setRepositoryApiPage(nextApiPage)
+      setHasMoreRepositories(nextRepositories.length === 100)
+    } catch (error) {
+      if (controller.signal.aborted) return
+      setLoadMoreError(error.message || 'Não foi possível carregar mais repositórios. Tente novamente.')
+    } finally {
+      if (moreRequestRef.current === controller) {
+        moreRequestRef.current = null
+        setIsLoadingMore(false)
+      }
     }
   }
 
@@ -162,6 +207,21 @@ function Explorer({ routeUsername = '' }) {
         {status === 'success' && user && (
           <section className="repositories" aria-labelledby="repositories-title">
             <h2 id="repositories-title">Repositórios públicos</h2>
+            <p className="search-message" role="status" aria-live="polite" aria-atomic="true">
+              Repositórios carregados: {repositories.length.toLocaleString('pt-BR')}.
+              {isLoadingMore && ' Carregando mais repositórios…'}
+            </p>
+            {hasMoreRepositories && (
+              <div className="repository-pagination">
+                <button type="button" onClick={handleLoadMore} disabled={isLoadingMore} aria-controls="repository-list">
+                  {isLoadingMore ? 'Carregando…' : loadMoreError ? 'Tentar novamente' : 'Carregar mais repositórios'}
+                </button>
+              </div>
+            )}
+            {loadMoreError && <p className="search-message search-error" role="alert">{loadMoreError}</p>}
+            {repositories.length > 0 && (
+              <p className="search-message">O filtro e a ordenação consideram os repositórios carregados.</p>
+            )}
             {repositories.length === 0 ? (
               <p className="search-message">Este usuário ainda não possui repositórios públicos.</p>
             ) : (
@@ -187,9 +247,7 @@ function Explorer({ routeUsername = '' }) {
                 <p className="search-message" role="status" aria-live="polite" aria-atomic="true">
                   {visibleRepositories.length.toLocaleString('pt-BR')} {visibleRepositories.length === 1 ? 'repositório exibido' : 'repositórios exibidos'} de {filteredRepositories.length.toLocaleString('pt-BR')}.
                   {totalPages > 1 && <> Página {currentPage} de {totalPages}.</>}
-                  {user.public_repos > repositories.length && (
-                    <> Este usuário possui {user.public_repos.toLocaleString('pt-BR')} repositórios públicos; exibimos até 100 nesta versão.</>
-                  )}
+
                 </p>
                 {totalPages > 1 && (
                   <nav className="repository-pagination" aria-label="Paginação dos repositórios">
