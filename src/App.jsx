@@ -25,6 +25,7 @@ function Explorer({ routeUsername = '' }) {
   const [user, setUser] = useState(null)
   const [repositories, setRepositories] = useState([])
   const [language, setLanguage] = useState('')
+  const [repositoryQuery, setRepositoryQuery] = useState('')
   const [sortOrder, setSortOrder] = useState('updated')
   const [page, setPage] = useState(1)
   const [repositoryApiPage, setRepositoryApiPage] = useState(1)
@@ -35,7 +36,9 @@ function Explorer({ routeUsername = '' }) {
   const languages = [...new Set(repositories.map((repository) => repository.language).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'pt-BR'))
   const hasUnknownLanguage = repositories.some((repository) => !repository.language)
+  const normalizedQuery = repositoryQuery.trim().toLocaleLowerCase('pt-BR')
   const filteredRepositories = repositories
+    .filter((repository) => repository.name.toLocaleLowerCase('pt-BR').includes(normalizedQuery))
     .filter((repository) => !language || (repository.language || '__unknown__') === language)
     .sort((a, b) => {
       const byName = a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })
@@ -101,6 +104,7 @@ function Explorer({ routeUsername = '' }) {
       setUser(null)
       setRepositories([])
       setLanguage('')
+      setRepositoryQuery('')
       setSortOrder('updated')
       setPage(1)
       setRepositoryApiPage(1)
@@ -220,12 +224,26 @@ function Explorer({ routeUsername = '' }) {
             )}
             {loadMoreError && <p className="search-message search-error" role="alert">{loadMoreError}</p>}
             {repositories.length > 0 && (
-              <p className="search-message">O filtro e a ordenação consideram os repositórios carregados.</p>
+              <p id="repository-search-help" className="search-message">O filtro e a ordenação consideram os repositórios carregados. A busca por nome também considera apenas esses resultados.</p>
             )}
             {repositories.length === 0 ? (
               <p className="search-message">Este usuário ainda não possui repositórios públicos.</p>
             ) : (
               <>
+                <div className="repository-control repository-search">
+                  <label htmlFor="repository-search">Buscar repositório</label>
+                  <input
+                    id="repository-search"
+                    type="search"
+                    placeholder="Digite parte do nome"
+                    value={repositoryQuery}
+                    onChange={(event) => { setRepositoryQuery(event.target.value); setPage(1) }}
+                    aria-controls="repository-list"
+                    aria-describedby="repository-search-help"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                  />
+                </div>
                 <div className="repository-controls">
                   <div className="repository-control">
                     <label htmlFor="repository-language">Linguagem</label>
@@ -247,6 +265,9 @@ function Explorer({ routeUsername = '' }) {
                 <p className="search-message" role="status" aria-live="polite" aria-atomic="true">
                   {visibleRepositories.length.toLocaleString('pt-BR')} {visibleRepositories.length === 1 ? 'repositório exibido' : 'repositórios exibidos'} de {filteredRepositories.length.toLocaleString('pt-BR')}.
                   {totalPages > 1 && <> Página {currentPage} de {totalPages}.</>}
+                  {filteredRepositories.length === 0 && (
+                    <> Nenhum repositório carregado corresponde à busca e ao filtro selecionados.</>
+                  )}
 
                 </p>
                 {totalPages > 1 && (

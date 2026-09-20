@@ -198,7 +198,8 @@ h1 {
   font-weight: 600;
 }
 
-.repository-control select {
+.repository-control select,
+.repository-control input {
   width: 100%;
   min-width: 0;
   padding: 12px;
@@ -209,7 +210,8 @@ h1 {
   color-scheme: dark;
 }
 
-.repository-control select:focus-visible {
+.repository-control select:focus-visible,
+.repository-control input:focus-visible {
   outline: 2px solid #58a6ff;
   outline-offset: 2px;
 }
@@ -335,4 +337,8 @@ h1 {
     order: -1;
     text-align: center;
   }
+}
+
+.repository-search {
+  margin-top: 20px;
 }

@@ -24,3 +24,5 @@ Os testes não consultam o GitHub. As respostas simuladas tornam a execução in
 A paginação divide em grupos de 10 os repositórios carregados em lotes de até 100. A suíte verifica carregamento de lotes seguintes, fim da lista, deduplicação, preservação dos controles, bloqueio de consultas simultâneas, nova tentativa do mesmo lote e cancelamento ao sair ou refazer a busca. Filtro e ordenação são locais e precedem a paginação. Os testes preservam esse comportamento.
 
 Referências: [Vitest](https://vitest.dev/guide/) e [React Testing Library](https://testing-library.com/docs/react-testing-library/setup/).
+
+A busca por nome é testada em conjunto com linguagem, ordenação e paginação, incluindo espaços nas extremidades, maiúsculas/minúsculas, nenhum resultado, limpeza, troca de perfil e novos lotes. Digitar e filtrar não geram novas consultas à API.
