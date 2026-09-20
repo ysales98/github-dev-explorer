@@ -9,6 +9,7 @@ Aplicação para pesquisar perfis e explorar repositórios públicos do GitHub, 
 - Busca de perfis com informações públicas do GitHub.
 - URLs compartilháveis para cada perfil: `/user/:username`.
 - Listagem de repositórios com descrição, linguagem, estrelas, forks e data de atualização.
+- Busca local por nome, combinada com linguagem, sem diferenciar maiúsculas e minúsculas.
 - Filtro por linguagem, incluindo repositórios sem linguagem informada.
 - Ordenação por atualização, estrelas ou nome.
 - Paginação local com 10 repositórios por página.
@@ -87,7 +88,7 @@ O arquivo `vercel.json` configura o acesso direto às rotas da aplicação na Ve
 ## Limitações atuais
 
 - Os repositórios são carregados em lotes de até 100 pelo botão "Carregar mais repositórios". Um lote menor que 100 encerra a busca; totais múltiplos de 100 podem exigir uma consulta final vazia.
-- O filtro, a ordenação e a paginação operam sobre os repositórios carregados.
+- A busca por nome, o filtro, a ordenação e a paginação operam sobre os repositórios carregados.
 - As consultas não autenticadas estão sujeitas aos limites da API do GitHub.
 - Os testes automatizados não substituem a validação visual em navegador.
 
