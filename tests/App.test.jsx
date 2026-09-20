@@ -143,7 +143,7 @@ it('informa quando a lista está limitada aos repositórios carregados', async (
   getUser.mockResolvedValue({ ...profile('alice'), public_repos: 150 })
   open('/user/alice')
   await loaded()
-  expect(screen.getByText(/exibimos até 100 nesta versão/)).toBeInTheDocument()
+  expect(screen.getByText(/O filtro e a ordenação consideram os repositórios carregados/)).toBeInTheDocument()
 })
 
 it('reinicia filtros, ordenação e página ao pesquisar outro perfil', async () => {
@@ -191,4 +191,110 @@ it('oferece retorno à busca para uma rota inexistente', async () => {
   await user.click(screen.getByRole('link', { name: 'Voltar à busca' }))
   expect(window.location.pathname).toBe('/')
   expect(getUser).not.toHaveBeenCalled()
+})
+
+// Um lote completo permite solicitar a próxima página da API.
+const fullBatch = Array.from({ length: 100 }, (_, index) => ({
+  ...repositories[0], id: index + 1, name: `batch-${String(index + 1).padStart(3, '0')}`,
+}))
+const extraRepository = { ...repositories[0], id: 101, name: 'extra-repo', language: 'Rust' }
+const loadMoreButton = () => screen.getByRole('button', { name: 'Carregar mais repositórios' })
+
+it('acrescenta outro lote, remove duplicatas e preserva filtro, ordem e página', async () => {
+  getUserRepositories.mockResolvedValueOnce(fullBatch).mockResolvedValueOnce([fullBatch[0], extraRepository])
+  const user = open('/user/alice')
+  await loaded()
+  await user.selectOptions(screen.getByLabelText('Linguagem'), 'JavaScript')
+  await user.selectOptions(screen.getByLabelText('Ordenar por'), 'name')
+  await user.click(next())
+  await user.click(loadMoreButton())
+  expect(await screen.findByText('Repositórios carregados: 101.')).toBeInTheDocument()
+  expect(getUserRepositories).toHaveBeenLastCalledWith('alice', expect.any(AbortSignal), 2)
+  expect(screen.getByLabelText('Linguagem')).toHaveValue('JavaScript')
+  expect(screen.getByLabelText('Ordenar por')).toHaveValue('name')
+  expect(pager()).toHaveTextContent('Página 2 de 10')
+  expect(cards()[0]).toHaveTextContent('batch-011')
+  expect(screen.queryByRole('button', { name: 'Carregar mais repositórios' })).not.toBeInTheDocument()
+  await user.selectOptions(screen.getByLabelText('Linguagem'), 'Rust')
+  expect(cards()).toHaveLength(1)
+  expect(cards()[0]).toHaveTextContent('extra-repo')
+})
+
+it('mantém os cards durante o carregamento e bloqueia cliques repetidos', async () => {
+  let resolveMore
+  getUserRepositories.mockResolvedValueOnce(fullBatch).mockImplementationOnce(() => new Promise(resolve => { resolveMore = resolve }))
+  const user = open('/user/alice')
+  await loaded()
+  await user.dblClick(loadMoreButton())
+  expect(screen.getByRole('button', { name: 'Carregando…' })).toBeDisabled()
+  expect(screen.getByText(/Carregando mais repositórios/)).toBeInTheDocument()
+  expect(cards()).toHaveLength(10)
+  expect(getUserRepositories).toHaveBeenCalledTimes(2)
+  await act(async () => resolveMore([extraRepository]))
+  expect(screen.getByText('Repositórios carregados: 101.')).toBeInTheDocument()
+})
+
+it('preserva a lista após erro e repete o mesmo lote antes de avançar', async () => {
+  const secondBatch = fullBatch.map(repo => ({ ...repo, id: repo.id + 100 }))
+  getUserRepositories.mockResolvedValueOnce(fullBatch)
+    .mockRejectedValueOnce(new Error('Limite de consultas atingido.'))
+    .mockResolvedValueOnce(secondBatch).mockResolvedValueOnce([])
+  const user = open('/user/alice')
+  await loaded()
+  await user.click(loadMoreButton())
+  expect(await screen.findByRole('alert')).toHaveTextContent('Limite de consultas')
+  expect(cards()).toHaveLength(10)
+  expect(screen.getByText('Repositórios carregados: 100.')).toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Tentar novamente' }))
+  expect(await screen.findByText('Repositórios carregados: 200.')).toBeInTheDocument()
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  await user.click(loadMoreButton())
+  expect(getUserRepositories.mock.calls.slice(1).map(call => call[2])).toEqual([2, 2, 3])
+  expect(screen.queryByRole('button', { name: 'Carregar mais repositórios' })).not.toBeInTheDocument()
+})
+
+it('encerra em um lote vazio sem apagar os resultados existentes', async () => {
+  getUserRepositories.mockResolvedValueOnce(fullBatch).mockResolvedValueOnce([])
+  const user = open('/user/alice')
+  await loaded()
+  await user.click(loadMoreButton())
+  expect(screen.getByText('Repositórios carregados: 100.')).toBeInTheDocument()
+  expect(cards()).toHaveLength(10)
+  expect(screen.queryByRole('button', { name: 'Carregar mais repositórios' })).not.toBeInTheDocument()
+})
+
+it.each([0, 1, 99])('não oferece mais lotes quando o primeiro contém %i itens', async (count) => {
+  getUserRepositories.mockResolvedValueOnce(fullBatch.slice(0, count))
+  open('/user/alice')
+  await loaded()
+  expect(screen.queryByRole('button', { name: 'Carregar mais repositórios' })).not.toBeInTheDocument()
+})
+
+it.each(['home', 'other', 'retry'])('cancela um lote pendente ao navegar: %s', async (destination) => {
+  let resolveMore
+  getUserRepositories.mockResolvedValueOnce(fullBatch)
+    .mockImplementationOnce(() => new Promise(resolve => { resolveMore = resolve }))
+    .mockResolvedValue(repositories)
+  const user = open('/user/alice')
+  await loaded()
+  await user.click(loadMoreButton())
+  const signal = getUserRepositories.mock.calls[1][1]
+  if (destination === 'home') {
+    await user.click(screen.getByRole('link', { name: /Voltar à busca/ }))
+  } else {
+    if (destination === 'other') {
+      await user.clear(screen.getByRole('textbox'))
+      await user.type(screen.getByRole('textbox'), 'bob')
+    }
+    await user.click(screen.getByRole('button', { name: 'Buscar' }))
+    await loaded(destination === 'other' ? 'bob' : 'alice')
+  }
+  expect(signal.aborted).toBe(true)
+  await act(async () => resolveMore([extraRepository]))
+  expect(screen.queryByText('extra-repo')).not.toBeInTheDocument()
+  if (destination === 'home') {
+    expect(screen.queryByRole('heading', { name: 'alice' })).not.toBeInTheDocument()
+  } else {
+    expect(screen.getByText('Repositórios carregados: 21.')).toBeInTheDocument()
+  }
 })

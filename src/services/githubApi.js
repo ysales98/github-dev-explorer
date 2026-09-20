@@ -40,6 +40,10 @@ export function getUser(username, signal) {
   return requestUserResource(username, '', signal)
 }
 
-export function getUserRepositories(username, signal) {
-  return requestUserResource(username, '/repos?per_page=100', signal)
+export function getUserRepositories(username, signal, page = 1) {
+  const resource = page === 1
+    ? '/repos?per_page=100'
+    : `/repos?per_page=100&page=${page}`
+
+  return requestUserResource(username, resource, signal)
 }
